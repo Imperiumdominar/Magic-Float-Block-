@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Magic Block! — Block Blast Style</title>
+    <title>Block Magic! — Block Blast Style</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -241,6 +241,27 @@
         user-select: none;
         letter-spacing: 0.03em;
       }
+      .block-magic-title {
+        font-size: 54px;
+        font-weight: 900;
+        background: linear-gradient(
+          45deg,
+          #ffa500,  /* Cam */
+          #ff4500,  /* Cam-đỏ */
+          #ffd700,  /* Vàng */
+          #a855f7,  /* Tím */
+          #38b6ff   /* Xanh dương */
+        );
+        background-size: 400% 400%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+        letter-spacing: -0.04em;
+        margin-bottom: 24px;
+        animation: gradientShift 12s ease infinite;
+        user-select: none;
+      }
+
 
       /* --- Nút chung --- */
       .main-btn {
@@ -462,7 +483,7 @@
   <body>
     <div class="wrap" id="main-wrap">
       <div id="home-view" class="views active" role="main" aria-label="Trang chủ trò chơi">
-        <h2 class="home-title" aria-label="Tiêu đề trò chơi Block Blast">BLOCK BLAST</h2>
+        <h2 class="block-magic-title" aria-label="Tiêu đề trò chơi Block Magic">BLOCK MAGIC</h2>
         <div class="home-subtitle" aria-label="Phụ đề trò chơi">ADVENTURE MASTER</div>
         <button
           id="classic-btn"
@@ -589,7 +610,7 @@
           class="btn-settings-home main-btn"
           aria-label="Quay về trang chủ"
         >
-          Về Home
+          Quay Lại
         </button>
       </div>
     </div>
@@ -807,6 +828,7 @@
 
       /* ------------- KHỞI TẠO VÀ CẤU TRÚC LẠI KHAY ------------- */
       // Cải thiện logic tạo khối: đảm bảo khối có thể đặt được
+      // Bổ sung: Tìm một khối có thể đặt được trên bảng hiện tại
       function findPlaceableShape() {
           const allShapes = Object.values(SHAPES);
           const tempBoard = JSON.parse(JSON.stringify(board));
@@ -989,12 +1011,11 @@
 
       function drawHintEffect() {
           if (!dragging || !dragPos) return;
-
-          let boardWithPiece = JSON.parse(JSON.stringify(board));
           const piece = tray[dragging.pieceIdx];
-          const ghost = ghostFromPointer(piece, dragPos.x, dragPos.y - 10);
+          const ghost = ghostFromPointer(piece, dragPos.x, dragPos.y); // Sử dụng dragPos
           if (!ghost || !ghost.valid) return;
 
+          let boardWithPiece = JSON.parse(JSON.stringify(board));
           for (const [x, y] of ghost.cells) {
               boardWithPiece[y][x] = 1;
           }
@@ -1084,34 +1105,39 @@
           ctx.globalAlpha = 1;
         }
       }
+
+      // Cải thiện logic để khối ghost "snap" vào lưới
       function ghostFromPointer(piece, mx, my) {
-        if (
-          mx < BOARD_PAD ||
-          my < BOARD_PAD ||
-          mx > BOARD_PAD + BOARD_SIZE ||
-          my > BOARD_PAD + BOARD_SIZE
-        )
-          return null;
-        const relX = mx - BOARD_PAD,
-          relY = my - BOARD_PAD;
-        const stride = CELL + GAP;
-        const gx = Math.floor(relX / stride);
-        const gy = Math.floor(relY / stride);
-        const cells = [],
-          out = { valid: true };
-        for (const [dx, dy] of piece.shape) {
-          const x = gx + dx,
-            y = gy + dy;
-          if (x < 0 || x >= GRID || y < 0 || y >= GRID) out.valid = false;
-          else if (board[y][x] !== 0) out.valid = false;
-          cells.push([x, y]);
-        }
-        out.valid = out.valid && cells.length > 0;
-        out.cells = cells;
-        out.gx = gx;
-        out.gy = gy;
-        return out;
+          const gridOffsetX = mx - dragging.offsetX + (boundsOf(piece.shape).w * 30 / 2);
+          const gridOffsetY = my - dragging.offsetY + (boundsOf(piece.shape).h * 30 / 2);
+
+          const relX = gridOffsetX - BOARD_PAD;
+          const relY = gridOffsetY - BOARD_PAD;
+
+          if (relX < -CELL || relY < -CELL || relX > BOARD_SIZE + CELL || relY > BOARD_SIZE + CELL) {
+              return null;
+          }
+          
+          const gx = Math.round(relX / (CELL + GAP));
+          const gy = Math.round(relY / (CELL + GAP));
+          
+          const cells = [],
+              out = { valid: true };
+          for (const [dx, dy] of piece.shape) {
+              const x = gx + dx,
+                  y = gy + dy;
+              if (x < 0 || x >= GRID || y < 0 || y >= GRID) out.valid = false;
+              else if (board[y][x] !== 0) out.valid = false;
+              cells.push([x, y]);
+          }
+          out.valid = out.valid && cells.length > 0;
+          out.cells = cells;
+          out.gx = gx;
+          out.gy = gy;
+          return out;
       }
+
+
       function drawGhost(cells, valid) {
         if (!cells) return;
         ctx.globalAlpha = 0.36;
@@ -1273,7 +1299,7 @@
           const ghost = ghostFromPointer(
             tray[dragging.pieceIdx],
             dragPos.x,
-            dragPos.y - 10
+            dragPos.y
           );
           if (ghost) drawGhost(ghost.cells, ghost.valid);
         }
@@ -1354,7 +1380,7 @@
 
       function maybeRefillTray() {
         if (tray === null || tray.every((p) => p.used)) {
-          // Lặp lại cho đến khi tìm thấy một bộ khối có thể đặt được
+          // Bổ sung: Lặp lại cho đến khi tìm thấy một bộ khối có thể đặt được
           let newTray;
           do {
             newTray = [randomPiece(), randomPiece(), randomPiece()];
@@ -1489,17 +1515,16 @@
         }
         return -1;
       }
-      function getPieceOffset(piece, mx, my, slot) {
+      
+      function getPieceOffset(piece, mx, my) {
           const { w, h } = boundsOf(piece.shape);
-          const unit = 30,
-            gap = 6;
-          const pw = w * unit + (w - 1) * gap,
-            ph = h * unit + (h - 1) * gap;
-          const px = slot.x + Math.round((slot.w - pw) / 2),
-            py = slot.y + Math.round((slot.h - ph) / 2);
+          const unit = 30, gap = 6;
+          const pw = w * unit + (w - 1) * gap;
+          const ph = h * unit + (h - 1) * gap;
 
-          return { offsetX: mx - px, offsetY: my - py };
+          return { offsetX: pw / 2, offsetY: ph / 2 };
       }
+
 
       function handlePointerDown(e) {
         if (isPaused) return;
@@ -1507,7 +1532,7 @@
         const idx = hitTray(p.x, p.y);
         if (idx >= 0) {
           const piece = tray[idx];
-          const offsets = getPieceOffset(piece, p.x, p.y, tray[idx].slotRect);
+          const offsets = getPieceOffset(piece, p.x, p.y);
 
           dragging = {
             pieceIdx: idx,
@@ -1541,7 +1566,7 @@
         const ghost = ghostFromPointer(
           piece,
           p.x,
-          p.y - 10
+          p.y
         );
         let linesCleared = 0;
         if (ghost && ghost.valid) {
@@ -1596,6 +1621,7 @@
             vy: -1.2,
             alpha: 1,
           });
+          // Bổ sung: Reset combo khi không đặt được khối
           comboCount = 0;
           lastClearTime = 0;
         }
