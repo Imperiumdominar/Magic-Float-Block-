@@ -685,11 +685,13 @@
       let rafId = null;
       let clearingCells = [];
       let lastMove = 0;
+      let comboCount = 0;
+      let lastClearTime = 0;
 
       /* ---------- ÂM THANH (các tệp online) ---------- */
       const SOUND_URLS = {
         place: "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",
-        clear: "https://actions.com/sounds/v1/cartoon/pop.ogg",
+        clear: "https://actions.google.com/sounds/v1/cartoon/pop.ogg",
         gameover: "https://actions.google.com/sounds/v1/alarms/beep_short.ogg",
         victory: "https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg",
         rotate: "https://actions.google.com/sounds/v1/cartoon/boing.ogg",
@@ -889,6 +891,8 @@
         isPaused = false;
         pauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
         dirty = true;
+        comboCount = 0;
+        lastClearTime = 0;
         if (!rafId) tick();
       }
 
@@ -1076,7 +1080,7 @@
           ctx.globalAlpha = 0.2;
           ctx.fillStyle = "#fff";
           roundedRect(x + 1, y + 1, unit - 2, unit - 2, 6);
-          ctx.fill();
+          ctx.stroke();
           ctx.globalAlpha = 1;
         }
       }
@@ -1539,6 +1543,7 @@
           p.x,
           p.y - 10
         );
+        let linesCleared = 0;
         if (ghost && ghost.valid) {
           placePiece(piece, ghost.gx, ghost.gy);
           piece.used = true;
@@ -1548,23 +1553,39 @@
 
           const { rows, cols } = fullLines();
           if (rows.length || cols.length) {
+            const now = performance.now();
+            if (now - lastClearTime < 1000 && lastClearTime > 0) {
+                comboCount++;
+            } else {
+                comboCount = 1;
+            }
+            lastClearTime = now;
+
             const totalLines = rows.length + cols.length;
-            const lineClearBonus = totalLines * 30;
+            const lineClearBonus = totalLines * 30 + comboCount * 10;
             score += lineClearBonus;
             scoreEl.textContent = score;
+            linesCleared = totalLines;
 
             clearLines(rows, cols);
 
+            let text = `+${lineClearBonus}`;
+            if (comboCount > 1) {
+                text += ` COMBO x${comboCount}`;
+            }
             floatingTexts.push({
               x: CANVAS_W / 2,
               y: BOARD_PAD + 100,
-              text: `+${lineClearBonus}`,
+              text: text,
               vy: -1.6,
               alpha: 1,
             });
 
+          } else {
+              comboCount = 0;
+              lastClearTime = 0;
           }
-          afterPlace();
+          afterPlace(linesCleared);
         } else {
           const from = { x: p.x - dragging.offsetX, y: p.y - dragging.offsetY };
           animateReturnToSlot(dragging.pieceIdx, from, 420);
@@ -1575,6 +1596,8 @@
             vy: -1.2,
             alpha: 1,
           });
+          comboCount = 0;
+          lastClearTime = 0;
         }
         try {
           canvas.releasePointerCapture(e.pointerId);
@@ -1608,7 +1631,7 @@
       }
 
       /* ---------- SAU KHI ĐẶT KHỐI ---------- */
-      function afterPlace() {
+      function afterPlace(linesCleared) {
         let newBest = false;
         if (score > best) {
           best = score;
@@ -1738,3 +1761,4 @@
     </script>
   </body>
 </html>
+
